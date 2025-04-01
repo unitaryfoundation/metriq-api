@@ -20,7 +20,7 @@
     "json",
     "quantum"
   ],
-  "author": "Unitary Fund",
+  "author": "Unitary Foundation",
   "license": "Apache-2.0",
   "dependencies": {
     "@types/sequelize": "^4.28.10",
