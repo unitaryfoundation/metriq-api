@@ -13,7 +13,7 @@ There are 3 main components to this project:
 First, clone the repositories and initialize the submodules:
 
 ```sh
- $ git clone https://github.com/unitaryfund/metriq-api.git
+ $ git clone https://github.com/unitaryfoundation/metriq-api.git
  $ cd metriq-api
  $ git submodule init
  $ git submodule update

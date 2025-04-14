@@ -1,6 +1,6 @@
 [submodule "metriq-app"]
 	path = metriq-app
-	url = https://github.com/unitaryfund/metriq-app.git
+	url = https://github.com/unitaryfoundation/metriq-app.git
 [submodule "metriq-postgres"]
 	path = metriq-postgres
-	url = https://github.com/unitaryfund/metriq-postgres.git
+	url = https://github.com/unitaryfoundation/metriq-postgres.git

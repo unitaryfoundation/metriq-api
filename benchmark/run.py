@@ -97,7 +97,7 @@ if __name__ == "__main__":
     # Specify path of QED-C repo and where to check it out:
     project_name = "benchmark"
     repo_name = "QC-App-Oriented-Benchmarks"
-    git_url = "https://github.com/unitaryfund/QC-App-Oriented-Benchmarks"
+    git_url = "https://github.com/unitaryfoundation/QC-App-Oriented-Benchmarks"
     repo_dir = os.path.join(project_name, repo_name)
 
     # If QED-C repo does not exist locally, clone it:
