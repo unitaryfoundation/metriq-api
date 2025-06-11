@@ -237,6 +237,22 @@ class ResultService extends ModelService {
     result.circuitDepth = reqBody.circuitDepth
     result.shots = reqBody.shots
 
+    if (reqBody.minValue !== undefined) {
+      result.min_value = reqBody.minValue ? parseFloat(reqBody.minValue) : null
+    }
+    if (reqBody.maxValue !== undefined) {
+      result.max_value = reqBody.maxValue ? parseFloat(reqBody.maxValue) : null
+    }
+    if (reqBody.q1Value !== undefined) {
+      result.q1_value = reqBody.q1Value ? parseFloat(reqBody.q1Value) : null
+    }
+    if (reqBody.medianValue !== undefined) {
+      result.median_value = reqBody.medianValue ? parseFloat(reqBody.medianValue) : null
+    }
+    if (reqBody.q3Value !== undefined) {
+      result.q3_value = reqBody.q3Value ? parseFloat(reqBody.q3Value) : null
+    }
+
     const nResult = await this.create(result)
     if (!nResult.success) {
       return nResult
@@ -292,7 +308,7 @@ class ResultService extends ModelService {
       if (!dataSet.isDataSet) {
         return { success: false, error: 'Invalid dataSet reference specified.' }
       }
-      result.submissionDataSetRefId = platform.id
+      result.submissionDataSetRefId = dataSet.id // fixed: was using platform.id
     } else {
       result.submissionDataSetRefId = null
     }
@@ -310,7 +326,23 @@ class ResultService extends ModelService {
     result.circuitDepth = reqBody.circuitDepth
     result.shots = reqBody.shots
 
-    result.save()
+    if (reqBody.minValue !== undefined) {
+      result.min_value = reqBody.minValue ? parseFloat(reqBody.minValue) : null
+    }
+    if (reqBody.maxValue !== undefined) {
+      result.max_value = reqBody.maxValue ? parseFloat(reqBody.maxValue) : null
+    }
+    if (reqBody.q1Value !== undefined) {
+      result.q1_value = reqBody.q1Value ? parseFloat(reqBody.q1Value) : null
+    }
+    if (reqBody.medianValue !== undefined) {
+      result.median_value = reqBody.medianValue ? parseFloat(reqBody.medianValue) : null
+    }
+    if (reqBody.q3Value !== undefined) {
+      result.q3_value = reqBody.q3Value ? parseFloat(reqBody.q3Value) : null
+    }
+
+    await result.save()
 
     let submission = await submissionSqlService.getEagerByPk(reqBody.submissionId)
     submission = await submissionSqlService.populate(submission, userId)
