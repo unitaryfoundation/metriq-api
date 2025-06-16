@@ -42,6 +42,26 @@ module.exports = function (sequelize, DataTypes) {
     shots: {
       type: DataTypes.INTEGER,
       allowNull: true
+    },
+    min_value: {
+      type: DataTypes.FLOAT,
+      allowNull: true
+    },
+    max_value: {
+      type: DataTypes.FLOAT,
+      allowNull: true
+    },
+    q1_value: {
+      type: DataTypes.FLOAT,
+      allowNull: true
+    },
+    median_value: {
+      type: DataTypes.FLOAT,
+      allowNull: true
+    },
+    q3_value: {
+      type: DataTypes.FLOAT,
+      allowNull: true
     }
   }, {})
   Model.associate = function (db) {
