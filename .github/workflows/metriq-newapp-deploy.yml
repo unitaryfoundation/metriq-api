@@ -49,7 +49,7 @@ jobs:
             --exclude 'Dockerfile' \
             --exclude 'docker-entrypoint.d/' \
             --exclude '.dockerignore'
-          echo beta.metriq.info > build/CNAME
+          echo metriq.info > build/CNAME
           touch build/.nojekyll
 
       - name: Upload Pages artifact
