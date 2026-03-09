@@ -1,3 +1,14 @@
+⚠️ **Repository archived**
+
+This repository is no longer actively maintained.
+
+Please refer to the new Metriq umbrella repository for the latest code and updates:
+
+👉 https://github.com/unitaryfoundation/metriq
+
+
+-------------------
+
 <div align="center">
   <img src="./metriq-app/src/images/metriq_logo_primary_blue_inverted.png" alt="Metriq logo" width="450" />
 </div>
