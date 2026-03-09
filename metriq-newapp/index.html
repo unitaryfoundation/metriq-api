@@ -64,11 +64,14 @@
     <div class="container">
       <nav class="nav">
         <a class="brand" href="#">
-          <img
-            class="brand__logo"
-            src="public/metriq_logo_horizontal_transparent.png"
-            alt="Metriq logo"
-          />
+          <span class="brand__lockup">
+            <img
+              class="brand__logo"
+              src="public/metriq_logo_horizontal_transparent.png"
+              alt="Metriq logo"
+            />
+            <span class="brand__beta" aria-hidden="true">beta</span>
+          </span>
         </a>
         <div class="actions">
           <a class="subtle-link" id="start-tour-btn" href="#">
@@ -121,7 +124,7 @@
         <header class="tabs__nav" role="tablist">
 	          <button class="tab is-active" role="tab" aria-selected="true" id="view-platforms-btn" data-target="#view-platforms">Platforms</button>
 	          <button class="tab" role="tab" aria-selected="false" id="view-results-btn" data-target="#view-results">Results</button>
-	          <button class="tab" role="tab" aria-selected="false" id="view-benchmarks-btn" data-target="#view-benchmarks">Benchmarks</button>
+	          <button class="tab" role="tab" aria-selected="false" id="view-benchmarks-btn" data-target="#view-benchmarks">Documentation</button>
         </header>
       </section>
 
@@ -130,7 +133,7 @@
         <p class="lead" id="hero-platforms-lead">
 	          A scoreboard that assigns each device a composite Metriq Score based on results from the <strong>metriq-gym</strong> benchmark suite.
 	          For individual benchmark runs, explore the &laquo;Results&raquo; tab.
-            For an in-depth understanding of each benchmark, visit the documentation in the &laquo;Benchmarks&raquo; tab.
+            For an in-depth understanding of each benchmark, visit the &laquo;Documentation&raquo; tab.
         </p>
         <p class="lead" id="hero-results-lead" hidden>
 	          Explore the latest <strong>metriq-gym</strong> results. Switch between an interactive <strong>Graph</strong> for trends and a <strong>Table</strong> for the raw numbers.
@@ -259,7 +262,7 @@
                 <div class="faq-a">Please create an issue in the <a href="https://github.com/unitaryfoundation/metriq-data/issues" target="_blank" rel="noopener">metriq-data</a> GitHub repository.</div>
               </details>
               <details class="faq-item" role="listitem">
-                <summary class="faq-q">Can I add benchmarks results?</summary>
+                <summary class="faq-q">Can I add new benchmark results?</summary>
                 <div class="faq-a">Yes, in fact everyone is encouraged to. Please use the <code>upload</code> command from the <a href="https://github.com/unitaryfoundation/metriq-gym" target="_blank" rel="noopener">metriq-gym</a> CLI.</div>
               </details>
               <details class="faq-item" role="listitem">
@@ -269,6 +272,16 @@
               <details class="faq-item" role="listitem">
                 <summary class="faq-q">What are Metriq's "classical" inspirations?</summary>
                 <div class="faq-a">Metriq draws inspiration from established “classical” benchmarking efforts like <a href="https://www.geekbench.com/" target="_blank" rel="noopener">Geekbench</a> for CPU/GPU, and <a href="https://mlcommons.org/benchmarks/" target="_blank" rel="noopener">MLCommons</a> and <a href="https://epoch.ai/benchmarks" target="_blank" rel="noopener">Epoch AI</a> for AI/ML models, adapted to the needs and constraints of quantum hardware and workflows.</div>
+              </details>
+              <details class="faq-item" role="listitem">
+                <summary class="faq-q">What happened to the old Metriq website?</summary>
+                <div class="faq-a">
+                  The original vision of Metriq started in 2022 as a website to crowd-source and share benchmarking results ingested from the literature in a wiki-like website. 
+                  However, we found that this approach did not fully address the challenges of fragmentation and reproducibility in quantum benchmarking. 
+                  As a result, we evolved Metriq into a more integrated platform that combines benchmark execution, data collection, and public presentation into a unified workflow.
+                  In the future, we may explore ways to incorporate literature results in a way that complements the core focus on executable benchmarks and reproducibility, 
+                  but for now we are prioritizing building out the integrated workflow and encouraging direct contributions of benchmark results through the <code>metriq-gym</code> CLI.
+                </div>
               </details>
             </div>
           </article>

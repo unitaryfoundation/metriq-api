@@ -35,4 +35,5 @@ if (b) config.benchmarksUrl = b;
 if (p) config.platformsIndexUrl = p;
 fs.writeFileSync(file, JSON.stringify(config, null, 2));
 NODE
-chmod 600 "$CONFIG_FILE"
+
+chmod 644 "$CONFIG_FILE"

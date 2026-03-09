@@ -63,7 +63,8 @@ let docsLoaded = false;
 let platformsIndexCache: any[] | null = null;
 let platformScoresCache: Map<string, number> | null = null;
 let platformQubitsCache: Map<string, number> | null = null;
-let platformSortKey: 'score' | 'num_qubits' | 'provider' | 'device' | 'last_seen' = 'score';
+let platformCoverageCache: Map<string, { covered: number; total: number }> | null = null;
+let platformSortKey: 'score' | 'coverage' | 'num_qubits' | 'provider' | 'device' | 'last_seen' = 'score';
 let platformSortDir: 'asc' | 'desc' = 'desc';
 let platformProviderFilter = '';
 let deviceSeriesCache: Map<string, number[]> | null = null;
@@ -564,9 +565,24 @@ function updateHash(next: Record<string, string>) {
       if (next.view !== 'platforms') {
         delete merged.provider;
         delete merged.device;
-      } else if (!('provider' in next) && !('device' in next)) {
+        delete merged.help;
+      } else if (!('provider' in next) && !('device' in next) && !('help' in next)) {
         delete merged.provider;
         delete merged.device;
+        delete merged.help;
+      }
+      if (next.view !== 'results') {
+        delete merged.results_provider;
+        delete merged.results_device;
+        delete merged.results_benchmark;
+        delete merged.results_timestamp;
+        delete merged.results_tab;
+      } else {
+        if (!('results_provider' in next)) delete merged.results_provider;
+        if (!('results_device' in next)) delete merged.results_device;
+        if (!('results_benchmark' in next)) delete merged.results_benchmark;
+        if (!('results_timestamp' in next)) delete merged.results_timestamp;
+        if (!('results_tab' in next)) delete merged.results_tab;
       }
     }
     const p = new URLSearchParams();
@@ -594,6 +610,51 @@ function navigateToPlatform(provider: string, device: string) {
     if (suppressHashHandler) suppressHashHandler = false;
     applyHashRouting();
   }, 0);
+}
+
+function buildResultsHash(
+  provider: string,
+  device: string,
+  benchmark: string,
+  timestamp = '',
+  tab: 'graph' | 'table' = 'table'
+) {
+  const params = new URLSearchParams({
+    view: 'results',
+    results_provider: provider,
+    results_device: device,
+    results_benchmark: benchmark,
+    results_tab: tab,
+  });
+  if (timestamp) params.set('results_timestamp', timestamp);
+  return '#' + params.toString();
+}
+
+function applyResultsRoute(route: Record<string, string>) {
+  const provider = String(route.results_provider || '').trim();
+  const device = String(route.results_device || '').trim();
+  const benchmark = String(route.results_benchmark || '').trim();
+  const timestamp = String(route.results_timestamp || '').trim();
+  const tab = route.results_tab === 'graph' ? 'graph' : 'table';
+
+  if (provider || benchmark) {
+    const providers = uniqueValues(rawBenchmarks as any, 'provider');
+    const benchmarks = uniqueValues(rawBenchmarks as any, 'benchmark');
+    filterState.provider = provider ? [provider] : providers.slice();
+    filterState.benchmark = benchmark ? [benchmark] : benchmarks.slice();
+    renderMultiLists();
+  }
+
+  if (provider || device || benchmark || timestamp) {
+    tableState.filterProvider = provider || 'all';
+    tableState.filterDevice = device || 'all';
+    tableState.filterBenchmark = benchmark || 'all';
+    tableState.filterText = timestamp || '';
+    tableState.sortKey = 'timestamp';
+    tableState.sortDir = 'desc';
+  }
+
+  activateTab(tab);
 }
 
 function renderMetriqScoreHelp() {
@@ -648,6 +709,17 @@ async function applyHashRouting() {
       return;
     }
     await initPlatformsView(true);
+    return;
+  }
+  if (view === 'results') {
+    if (!Array.isArray(rawBenchmarks) || rawBenchmarks.length === 0) {
+      await initBenchmarksView();
+    }
+    applyResultsRoute(h);
+    return;
+  }
+  if (view === 'benchmarks') {
+    await initBenchmarksDocsView();
   }
 }
 
@@ -727,10 +799,29 @@ function extractPlatformNumQubits(detail: any): number | null {
   return null;
 }
 
+function extractPlatformCoverage(detail: any): { covered: number; total: number } | null {
+  const comps = detail?.metriq_score?.components;
+  if (!comps || typeof comps !== 'object') return null;
+  const values = Object.values(comps as Record<string, any>);
+  if (!values.length) return null;
+  const hasFinite = (value: any) => value !== null && value !== undefined && Number.isFinite(Number(value));
+  let covered = 0;
+  values.forEach((value: any) => {
+    const hasResult = value?.normalized_available === true
+      || value?.raw_available === true
+      || hasFinite(value?.normalized)
+      || hasFinite(value?.raw)
+      || Boolean(value?.timestamp || value?.normalized_timestamp || value?.raw_timestamp);
+    if (hasResult) covered += 1;
+  });
+  return { covered, total: values.length };
+}
+
 async function loadPlatformScores() {
-  if (platformScoresCache && platformQubitsCache) return platformScoresCache;
+  if (platformScoresCache && platformQubitsCache && platformCoverageCache) return platformScoresCache;
   if (!platformScoresCache) platformScoresCache = new Map();
   if (!platformQubitsCache) platformQubitsCache = new Map();
+  if (!platformCoverageCache) platformCoverageCache = new Map();
 
   const data = await loadPlatformsIndex();
   const platforms = Array.isArray((data as any).platforms) ? (data as any).platforms : [];
@@ -758,6 +849,10 @@ async function loadPlatformScores() {
       if (nq !== null && Number.isFinite(nq)) {
         platformQubitsCache!.set(key, nq);
       }
+      const coverage = extractPlatformCoverage(json);
+      if (coverage) {
+        platformCoverageCache!.set(key, coverage);
+      }
     } catch {
       // ignore errors
     }
@@ -774,6 +869,21 @@ function getPlatformsBaseUrl(indexUrl: string) {
     }
     return indexUrl.replace(/index\.json$/i, '');
   } catch { return null; }
+}
+
+function formatPlatformComponentRawValue(value: any) {
+  if (value === null || value === undefined) return '–';
+  const num = Number(value);
+  if (!Number.isFinite(num)) return String(value);
+  const abs = Math.abs(num);
+  if ((abs !== 0 && abs < 1e-4) || abs >= 1e6) return num.toExponential(3);
+  if (abs >= 1000) {
+    return num.toLocaleString(undefined, { maximumFractionDigits: 2 });
+  }
+  if (abs >= 1) {
+    return num.toLocaleString(undefined, { maximumFractionDigits: 4 });
+  }
+  return num.toLocaleString(undefined, { maximumSignificantDigits: 6 });
 }
 
 async function showPlatformDetailPage(provider: string, device: string) {
@@ -818,7 +928,8 @@ function renderPlatformDetailPage(detail: any) {
 
   let scoreHtml = '<div class="meta">No Metriq score available.</div>';
   if (metriqScore && typeof metriqScore === 'object') {
-    const val = Number((metriqScore as any).value);
+    const valRaw = (metriqScore as any).value;
+    const val = (valRaw === null || valRaw === undefined) ? null : Number(valRaw);
     const series = (metriqScore as any).series || '';
     const components = (metriqScore as any).components && typeof (metriqScore as any).components === 'object'
       ? Object.entries((metriqScore as any).components as Record<string, any>)
@@ -829,28 +940,42 @@ function renderPlatformDetailPage(detail: any) {
       return wb - wa;
     });
     const rows = components.map(([name, c]) => {
-      const w = Number(c?.weight);
-      const n = Number(c?.normalized);
+      const benchmark = typeof c?.group === 'string' ? String(c.group).trim() : '';
+      const wRaw = c?.weight;
+      const rawRaw = c?.raw;
+      const nRaw = c?.normalized;
+      const w = (wRaw === null || wRaw === undefined) ? null : Number(wRaw);
+      const raw = rawRaw === null || rawRaw === undefined ? null : formatPlatformComponentRawValue(rawRaw);
+      const n = (nRaw === null || nRaw === undefined) ? null : Number(nRaw);
       const ts = c?.timestamp ? dateOnlyFormatter.format(new Date(c.timestamp)) : '';
-      return `<tr>
+      const href = benchmark
+        ? buildResultsHash(String(provider), String(device), benchmark, String(c?.timestamp || ''), 'table')
+        : '';
+      const rowAttrs = href
+        ? ` class="platform-component-row" data-results-href="${escapeAttr(href)}" tabindex="0" title="Open matching results"`
+        : '';
+      return `<tr${rowAttrs}>
         <td>${escapeHtml(name)}</td>
-        <td class="num">${Number.isFinite(w) ? w.toFixed(2) : '–'}</td>
-        <td class="num">${Number.isFinite(n) ? n.toFixed(3) : '–'}</td>
+        <td class="num">${w !== null && Number.isFinite(w) ? w.toFixed(2) : '–'}</td>
+        <td class="num">${raw !== null ? escapeHtml(raw) : '–'}</td>
+        <td class="num">${n !== null && Number.isFinite(n) ? n.toFixed(3) : '–'}</td>
         <td class="num">${escapeHtml(ts)}</td>
       </tr>`;
     }).join('');
     scoreHtml = `
       <div class="meta" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
         <span style="display:inline-flex;align-items:center;gap:6px;background:#eef2ff;color:#312e81;padding:4px 10px;border-radius:999px;font-weight:600;">Series: ${escapeHtml(series || '')}</span>
-        <span style="display:inline-flex;align-items:center;gap:6px;background:#ecfeff;color:#164e63;padding:4px 10px;border-radius:999px;font-weight:600;">Value: ${Number.isFinite(val) ? val.toFixed(2) : '–'}</span>
+        <span style="display:inline-flex;align-items:center;gap:6px;background:#ecfeff;color:#164e63;padding:4px 10px;border-radius:999px;font-weight:600;">Value: ${val !== null && Number.isFinite(val) ? val.toFixed(2) : '–'}</span>
       </div>
       ${components.length ? `
+        <div class="meta" style="margin-top:12px;">Click a component row to open the matching run in Results.</div>
         <div id="platform-detail-table" style="overflow:auto; margin-top:12px;">
-          <table class="smart-table" style="width:100%;min-width:520px;">
+          <table class="smart-table" style="width:100%;min-width:660px;">
             <thead>
               <tr>
                 <th>Component</th>
                 <th class="num">Weight</th>
+                <th class="num">Raw</th>
                 <th class="num">Normalized</th>
                 <th class="num">Timestamp</th>
               </tr>
@@ -895,6 +1020,23 @@ function renderPlatformDetailPage(detail: any) {
       applyHashRouting();
     });
   }
+  container.querySelectorAll<HTMLTableRowElement>('#platform-detail-table tbody tr[data-results-href]').forEach((row) => {
+    const href = row.getAttribute('data-results-href') || '';
+    if (!href) return;
+    const open = () => {
+      if (location.hash !== href) {
+        location.hash = href;
+      } else {
+        applyHashRouting();
+      }
+    };
+    row.addEventListener('click', () => open());
+    row.addEventListener('keydown', (event: KeyboardEvent) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      open();
+    });
+  });
 }
 
 function escapeHtml(s: string) {
@@ -1092,6 +1234,9 @@ function ensurePlatformsHeaderTooltipsBound(table: HTMLTableElement) {
     if (which === 'platforms-activity') {
       return `Runs per week over the last 12 weeks (newest week on the right).`;
     }
+    if (which === 'platforms-coverage') {
+      return `Benchmark components with a recorded result for this device, shown as covered/total.`;
+    }
     if (which === 'platforms-score') {
       return `Aggregate score for the device. Click a score cell to see the breakdown. <a href="#view=platforms&help=metriq-score">Learn more</a>`;
     }
@@ -1204,12 +1349,13 @@ function renderPlatformsTable() {
 		    table.className = 'smart-table';
 		    table.innerHTML = `
 		      <colgroup>
-		        <col style="width: 220px;" />
+		        <col style="width: 205px;" />
 		        <col style="width: 70px;" />
-		        <col style="width: 150px;" />
+		        <col style="width: 140px;" />
+		        <col style="width: 210px;" />
+		        <col style="width: 92px;" />
+		        <col style="width: 118px;" />
 		        <col />
-		        <col style="width: 130px;" />
-		        <col style="width: 200px;" />
 		      </colgroup>
 		      <thead>
 		        <tr>
@@ -1218,6 +1364,9 @@ function renderPlatformsTable() {
 		          <th data-col="provider" data-label="Provider" class="sortable">${renderPlatformsProviderHeaderHtml()}</th>
 		          <th data-col="score" data-label="Metriq Score" class="sortable num">
 		            <span class="th-help" tabindex="0" data-tip="platforms-score">Metriq Score</span>
+		          </th>
+		          <th data-col="coverage" data-label="Coverage" class="sortable num">
+		            <span class="th-help" tabindex="0" data-tip="platforms-coverage">Coverage</span>
 		          </th>
 		          <th data-col="last_seen" data-label="Last Updated" class="sortable num">Last Updated</th>
 		          <th data-label="Recent Activity" class="activity-col">
@@ -1268,6 +1417,8 @@ function renderPlatformsTable() {
 	    const keyB = getDeviceKey(String(b.provider||''), String(b.device||''));
 	    const sa = platformScoresCache && platformScoresCache.get(keyA);
 	    const sb = platformScoresCache && platformScoresCache.get(keyB);
+	    const ca = platformCoverageCache && platformCoverageCache.get(keyA);
+	    const cb = platformCoverageCache && platformCoverageCache.get(keyB);
 	    const qa = platformQubitsCache && platformQubitsCache.get(keyA);
 	    const qb = platformQubitsCache && platformQubitsCache.get(keyB);
 	    const dir = platformSortDir === 'asc' ? 1 : -1;
@@ -1275,6 +1426,13 @@ function renderPlatformsTable() {
 	    if (platformSortKey === 'score') {
 	      const va = sa ?? Number.NEGATIVE_INFINITY;
 	      const vb = sb ?? Number.NEGATIVE_INFINITY;
+	      if (va !== vb) return (va < vb ? -1 : 1) * dir;
+	    } else if (platformSortKey === 'coverage') {
+	      const ra = ca && ca.total > 0 ? ca.covered / ca.total : Number.NEGATIVE_INFINITY;
+	      const rb = cb && cb.total > 0 ? cb.covered / cb.total : Number.NEGATIVE_INFINITY;
+	      if (ra !== rb) return (ra < rb ? -1 : 1) * dir;
+	      const va = ca?.covered ?? Number.NEGATIVE_INFINITY;
+	      const vb = cb?.covered ?? Number.NEGATIVE_INFINITY;
 	      if (va !== vb) return (va < vb ? -1 : 1) * dir;
 	    } else if (platformSortKey === 'num_qubits') {
 	      const va = qa ?? Number.NEGATIVE_INFINITY;
@@ -1311,6 +1469,7 @@ function renderPlatformsTable() {
 			  filtered.forEach((p: any) => {
 		    const key = getDeviceKey(String(p.provider||''), String(p.device||''));
 		    const numQubits = platformQubitsCache && platformQubitsCache.get(key);
+		    const coverage = platformCoverageCache && platformCoverageCache.get(key);
 		    const series = (deviceSeriesCache && deviceSeriesCache.get(key)) || [];
 		    const spark = series.length ? renderSparkline(series) : '';
 		    const href = `#view=platforms&provider=${encodeURIComponent(String(p.provider||''))}&device=${encodeURIComponent(String(p.device||''))}`;
@@ -1318,6 +1477,7 @@ function renderPlatformsTable() {
 		    const deviceLabel = `${escapeHtml(p.device||'')}${isBaseline ? ' <span class="baseline-badge">Baseline</span>' : ''}`;
 		    const scoreVal = platformScoresCache && platformScoresCache.get(key);
 		    const scoreText = (scoreVal !== undefined && Number.isFinite(scoreVal)) ? scoreVal.toFixed(2) : '–';
+		    const coverageText = coverage && coverage.total > 0 ? `${coverage.covered}/${coverage.total}` : '–';
 		    const scorePct = (scoreVal !== undefined && Number.isFinite(scoreVal) && Number.isFinite(maxScore) && maxScore > 0)
 		      ? Math.max(0, Math.min(100, (Number(scoreVal) / maxScore) * 100))
 		      : 0;
@@ -1328,6 +1488,7 @@ function renderPlatformsTable() {
 			        <td>${numQubits !== undefined && numQubits !== null ? escapeHtml(String(numQubits)) : '—'}</td>
 			        <td title="${escapeAttr(p.provider||'')}">${escapeHtml(p.provider||'')}</td>
 			        <td class="num metriq-score" data-provider="${escapeAttr(p.provider||'')}" data-device="${escapeAttr(p.device||'')}" title="View Metriq score breakdown"><div class="scorecell"><span class="scorecell__value">${scoreText}</span><span class="scorebar" aria-hidden="true"><span class="scorebar__fill" style="width:${scorePct.toFixed(1)}%"></span></span></div></td>
+			        <td class="num">${escapeHtml(coverageText)}</td>
 			        <td class="num">${escapeHtml(lastTs||'')}</td>
 			        <td class="activity-col">${spark}</td>
 			      </tr>`);
@@ -1359,6 +1520,10 @@ function renderPlatformsTable() {
 			      th.innerHTML = `
 			        <span class="th-help" tabindex="0" data-tip="platforms-score">${escapeHtml(baseLabel)}</span>${icon}
 			      `.trim();
+			    } else if (col === 'coverage') {
+			      th.innerHTML = `
+			        <span class="th-help" tabindex="0" data-tip="platforms-coverage">${escapeHtml(baseLabel)}</span>${icon}
+			      `.trim();
 			    } else if (col === 'provider') {
 			      th.innerHTML = `${renderPlatformsProviderHeaderHtml()}${icon}`;
 			    } else {
@@ -1386,9 +1551,34 @@ function adaptMetriqEtlRow(row: any) {
   const rawErrors = (row && typeof row.errors === 'object' && row.errors != null) ? row.errors : {};
   const rawDirections = (row && typeof row.directions === 'object' && row.directions != null) ? row.directions : {};
   const rawParams = params;
-  const score = Number(row?.metriq_score);
+  const normalizedScores = (row && typeof row.normalized_scores === 'object' && row.normalized_scores != null)
+    ? (row.normalized_scores as Record<string, unknown>)
+    : {};
+  const parseFinite = (value: unknown): number | null => {
+    if (value === null || value === undefined) return null;
+    const num = Number(value);
+    return Number.isFinite(num) ? num : null;
+  };
+  let score: number | null = null;
+  const rawScore = row?.metriq_score;
+  if (rawScore && typeof rawScore === 'object' && 'value' in rawScore) {
+    score = parseFinite((rawScore as Record<string, unknown>).value);
+  } else {
+    score = parseFinite(rawScore);
+  }
+  if (score === null) {
+    const fallbackVals = Object.values(normalizedScores)
+      .map(parseFinite)
+      .filter((v): v is number => v !== null);
+    if (fallbackVals.length === 1) {
+      score = fallbackVals[0];
+    } else if (fallbackVals.length > 1) {
+      // Fallback for older multi-metric rows where scalar metriq_score is absent.
+      score = fallbackVals.reduce((acc, v) => acc + v, 0) / fallbackVals.length;
+    }
+  }
   let metrics: Record<string, number> = {};
-  if (Number.isFinite(score)) {
+  if (score !== null) {
     // Normalize the exposed metric id from 'metriq_score' → 'score'
     metrics = { score: score };
   } else {
